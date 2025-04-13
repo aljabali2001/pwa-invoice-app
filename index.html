@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#5D5CDE">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="apple-touch-icon" href="./icon-192.png">
+    <title>Invoice Generator</title>
+    <!-- rest of your head content... -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Tajawal', sans-serif;
+        }
+        
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            body {
+                margin: 1cm;
+            }
+        }
+        
+        .print-only {
+            display: none;
+        }
+        
+        .dark .print-preview {
+            background-color: white;
+            color: black;
+        }
+        
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .receipt-fields {
+            display: none;
+        }
+
+        .invoice-fields {
+            display: block;
+        }
+        
+        .payment-reference-field {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-black dark:text-white">
+    <div class="container mx-auto p-4">
+        <!-- App Header -->
+        <div class="no-print">
+            <h1 class="text-2xl font-bold text-center mb-6">منشئ الفواتير</h1>
+            
+            <!-- Form Controls -->
+            <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4 mb-6">
+                <h2 class="text-xl font-semibold mb-4">بيانات الفاتورة</h2>
+                
+                <!-- Document Type -->
+                <div class="mb-4">
+                    <label class="block text-gray-700 dark:text-gray-300 mb-1">نوع المستند</label>
+                    <select id="document-type" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        <option value="فاتورة">فاتورة</option>
+                        <option value="عرض سعر" selected>عرض سعر</option>
+                        <option value="إيصال">إيصال</option>
+                        <option value="عقد عمل">عقد عمل</option>
+                    </select>
+                </div>
+                
+                <!-- Common Fields (Always Visible) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-1">رقم المستند / Document No.</label>
+                        <div class="flex items-center">
+                            <input type="text" id="invoice-number" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" readonly>
+                            <button id="new-invoice-btn" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 mr-2">مستند جديد</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 dark:text-gray-300 mb-1">التاريخ / Date</label>
+                        <input type="date" id="invoice-date" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                    </div>
+                </div>
+                
+                <!-- Invoice/Quote Specific Fields -->
+                <div class="invoice-fields">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">العميل / Customer</label>
+                            <input type="text" id="customer-name" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">عنوان العميل / Customer Address</label>
+                            <input type="text" id="address" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">عنوان الشحن / Shipping Address</label>
+                            <input type="text" id="shipping-address" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">المرجع / Reference</label>
+                            <input type="text" id="reference" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">البائع / Seller</label>
+                            <input type="text" id="seller" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                        </div>
+                    </div>
+                
+                    <!-- Line Items -->
+                    <div class="mb-4">
+                        <h3 class="text-lg font-medium mb-2">بنود الفاتورة</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full mb-2">
+                                <thead>
+                                    <tr class="bg-gray-200 dark:bg-gray-700">
+                                        <th class="p-2 text-right">الوصف</th>
+                                        <th class="p-2 text-center">الكمية</th>
+                                        <th class="p-2 text-center"></th>
+                                        <th class="p-2 text-center">السعر</th>
+                                        <th class="p-2 text-center">الخصم</th>
+                                        <th class="p-2 text-center">الضريبة</th>
+                                        <th class="p-2 text-center">الإجمالي</th>
+                                        <th class="p-2 text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="items-table">
+                                    <!-- Items will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <button id="add-item-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">إضافة وصف</button>
+                    </div>
+                    
+                    <!-- Tax and Totals -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">نسبة ضريبة القيمة المضافة (%)</label>
+                            <input type="number" id="vat-rate" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="0">
+                        </div>
+                        <div class="md:text-left">
+                            <div class="mb-2">
+                                <span class="font-semibold">المجموع قبل الضريبة:</span>
+                                <span id="subtotal" class="mr-2">0.00</span>
+                                <span>ريال</span>
+                            </div>
+                            <div class="mb-2">
+                                <span class="font-semibold">إجمالي الضريبة:</span>
+                                <span id="total-vat" class="mr-2">0.00</span>
+                                <span>ريال</span>
+                            </div>
+                            <div class="mb-2">
+                                <span class="font-semibold">المجموع الكلي:</span>
+                                <span id="grand-total" class="mr-2">0.00</span>
+                                <span>ريال</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Receipt Specific Fields -->
+                <div class="receipt-fields">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">استلمنا من السيد / Received From</label>
+                            <input type="text" id="receipt-customer" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">المبلغ (ريال) / Amount (SAR)</label>
+                            <input type="number" id="receipt-amount" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="0">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">نوع الدفع / Payment Type</label>
+                            <select id="receipt-payment-type" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <option value="" disabled selected>اختر نوع الدفع</option>
+                                <option value="نقد">نقد / Cash</option>
+                                <option value="شيك">شيك / Cheque</option>
+                                <option value="حوالة">حوالة / Bank Transfer</option>
+                            </select>
+                        </div>
+                        <div id="payment-reference-field" class="payment-reference-field">
+                            <label id="payment-reference-label" class="block text-gray-700 dark:text-gray-300 mb-1">رقم المرجع / Reference No.</label>
+                            <input type="text" id="payment-reference-number" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">وذلك بمقابل / For</label>
+                            <input type="text" id="receipt-for" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 dark:text-gray-300 mb-1">المستلم / Recipient</label>
+                            <input type="text" id="receipt-recipient" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white" value="">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex justify-center gap-4 mb-6">
+                <button id="print-btn" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700">طباعة المستند</button>
+                <button id="reset-btn" class="bg-red-600 text-white px-6 py-2 rounded hover:bg-red-700">إعادة تعيين</button>
+            </div>
+            
+            <!-- Print Preview -->
+            <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-4">
+                <h2 class="text-xl font-semibold mb-4">معاينة الطباعة</h2>
+                <div id="print-preview" class="print-preview bg-white p-4 rounded border overflow-hidden"></div>
+            </div>
+        </div>
+        
+        <!-- Print-only Version -->
+        <div id="print-version" class="print-only"></div>
+    </div>
+    
+    <script>
+        // Initialize dark mode detection
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+        
+        // Set today's date as default
+        document.getElementById('invoice-date').valueAsDate = new Date();
+        
+        // Item counter for unique IDs
+        let itemCounter = 0;
+        
+        // Invoice number counter and formatter
+        let invoiceCounter = 537; // Starting from S000537
+        
+        // Format invoice number with leading zeros
+        function formatInvoiceNumber() {
+            return 'S' + invoiceCounter.toString().padStart(6, '0');
+        }
+        
+        // Set initial invoice number
+        document.getElementById('invoice-number').value = formatInvoiceNumber();
+        
+        // Generate new invoice number
+        function generateNewInvoiceNumber() {
+            invoiceCounter++;
+            document.getElementById('invoice-number').value = formatInvoiceNumber();
+        }
+        
+        // Formatting functions
+        function formatNumber(num) {
+            return parseFloat(num).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+        
+        // Toggle payment reference field based on payment type
+        function togglePaymentReferenceField() {
+            const paymentType = document.getElementById('receipt-payment-type').value;
+            const referenceField = document.getElementById('payment-reference-field');
+            const referenceLabel = document.getElementById('payment-reference-label');
+            
+            if (paymentType === 'شيك' || paymentType === 'حوالة') {
+                referenceField.style.display = 'block';
+                
+                // Update the label based on payment type
+                if (paymentType === 'شيك') {
+                    referenceLabel.textContent = 'رقم الشيك / Cheque No.';
+                } else if (paymentType === 'حوالة') {
+                    referenceLabel.textContent = 'رقم الحوالة / Transfer No.';
+                }
+            } else {
+                referenceField.style.display = 'none';
+                document.getElementById('payment-reference-number').value = '';
+            }
+            
+            updatePreview();
+        }
+        
+        // Toggle form fields based on document type
+        function toggleFormFields() {
+            const documentType = document.getElementById('document-type').value;
+            const invoiceFields = document.querySelector('.invoice-fields');
+            const receiptFields = document.querySelector('.receipt-fields');
+            
+            if (documentType === 'إيصال') {
+                invoiceFields.style.display = 'none';
+                receiptFields.style.display = 'block';
+                
+                // Sync customer name between forms
+                const customerName = document.getElementById('customer-name').value;
+                if (customerName && !document.getElementById('receipt-customer').value) {
+                    document.getElementById('receipt-customer').value = customerName;
+                }
+                
+                // Sync amount between forms
+                const grandTotal = parseFloat(document.getElementById('grand-total').textContent.replace(/,/g, '')) || 0;
+                if (grandTotal > 0 && !document.getElementById('receipt-amount').value) {
+                    document.getElementById('receipt-amount').value = grandTotal;
+                }
+            } else {
+                invoiceFields.style.display = 'block';
+                receiptFields.style.display = 'none';
+                
+                // Sync customer name between forms
+                const receiptCustomer = document.getElementById('receipt-customer').value;
+                if (receiptCustomer && !document.getElementById('customer-name').value) {
+                    document.getElementById('customer-name').value = receiptCustomer;
+                }
+            }
+            
+            updatePreview();
+        }
+        
+        // Add a new line item row
+        function addItemRow(item = {}) {
+            const id = itemCounter++;
+            const defaultItem = {
+                name: '',
+                quantity: 0,
+                unit: '',
+                price: '',
+                discount: 0,
+                vat: 0,
+                total: 0
+            };
+            
+            const currentItem = {...defaultItem, ...item};
+            
+            const row = document.createElement('tr');
+            row.id = `item-row-${id}`;
+            row.className = 'border-b dark:border-gray-700';
+            row.innerHTML = `
+                <td class="p-2">
+                    <input type="text" class="w-full p-1 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white item-name" 
+                           value="${currentItem.name}" placeholder="أدخل الوصف">
+                </td>
+                <td class="p-2">
+                    <input type="number" min="1" class="w-full p-1 border rounded text-center dark:bg-gray-700 dark:border-gray-600 dark:text-white item-quantity" 
+                           value="${currentItem.quantity}" onchange="updateItemTotal(${id})">
+                </td>
+                <td class="p-2">
+                    <input type="text" class="w-full p-1 border rounded text-center dark:bg-gray-700 dark:border-gray-600 dark:text-white item-unit" 
+                           value="${currentItem.unit}">
+                </td>
+                <td class="p-2">
+                    <input type="text" class="w-full p-1 border rounded text-center dark:bg-gray-700 dark:border-gray-600 dark:text-white item-price" 
+                           value="${currentItem.price}" onchange="updateItemTotal(${id})">
+                </td>
+                <td class="p-2">
+                    <input type="number" min="0" max="100" class="w-full p-1 border rounded text-center dark:bg-gray-700 dark:border-gray-600 dark:text-white item-discount" 
+                           value="${currentItem.discount}" onchange="updateItemTotal(${id})">
+                </td>
+                <td class="p-2 item-vat text-center">${formatNumber(currentItem.vat)}</td>
+                <td class="p-2 item-total text-center">${formatNumber(currentItem.total)}</td>
+                <td class="p-2 text-center">
+                    <button class="bg-red-500 text-white px-2 py-1 rounded hover:bg-red-600" 
+                            onclick="removeItem(${id})">حذف</button>
+                </td>
+            `;
+            
+            document.getElementById('items-table').appendChild(row);
+            updateItemTotal(id);
+        }
+        
+        // Update item totals when values change
+        function updateItemTotal(id) {
+            const row = document.getElementById(`item-row-${id}`);
+            if (!row) return;
+            
+            const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+            const priceInput = row.querySelector('.item-price').value;
+            const price = !isNaN(parseFloat(priceInput)) ? parseFloat(priceInput) : 0;
+            const discountPercent = parseFloat(row.querySelector('.item-discount').value) || 0;
+            
+            const vatRate = parseFloat(document.getElementById('vat-rate').value) || 0;
+            
+            const discount = (price * quantity) * (discountPercent / 100);
+            const subtotal = (price * quantity) - discount;
+            const vat = subtotal * (vatRate / 100);
+            const total = subtotal + vat;
+            
+            row.querySelector('.item-vat').textContent = formatNumber(vat);
+            row.querySelector('.item-total').textContent = formatNumber(total);
+            
+            updateTotals();
+        }
+        
+        // Remove an item row
+        function removeItem(id) {
+            const row = document.getElementById(`item-row-${id}`);
+            if (row) {
+                row.remove();
+                updateTotals();
+            }
+        }
+        
+        // Update invoice totals
+        function updateTotals() {
+            let subtotal = 0;
+            let totalVat = 0;
+            
+            document.querySelectorAll('#items-table tr').forEach(row => {
+                const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+                const priceInput = row.querySelector('.item-price').value;
+                const price = !isNaN(parseFloat(priceInput)) ? parseFloat(priceInput) : 0;
+                const discountPercent = parseFloat(row.querySelector('.item-discount').value) || 0;
+                
+                const discount = (price * quantity) * (discountPercent / 100);
+                const itemSubtotal = (price * quantity) - discount;
+                
+                subtotal += itemSubtotal;
+                totalVat += parseFloat(row.querySelector('.item-vat').textContent.replace(/,/g, '')) || 0;
+            });
+            
+            const grandTotal = subtotal + totalVat;
+            
+            document.getElementById('subtotal').textContent = formatNumber(subtotal);
+            document.getElementById('total-vat').textContent = formatNumber(totalVat);
+            document.getElementById('grand-total').textContent = formatNumber(grandTotal);
+            
+            // Sync amount with receipt if in receipt mode
+            if (document.querySelector('.receipt-fields').style.display === 'block') {
+                document.getElementById('receipt-amount').value = grandTotal > 0 ? grandTotal : 0;
+            }
+            
+            // Update preview
+            updatePreview();
+        }
+        
+        // Generate the print version
+        function updatePreview() {
+            const documentType = document.getElementById('document-type').value;
+            const invoiceNumber = document.getElementById('invoice-number').value;
+            const invoiceDate = document.getElementById('invoice-date').value || '';
+            
+            // Footer address to be used in all documents
+            const footerAddress = `
+                <div class="border-t pt-4 mt-6">
+                    <img src="https://pfst.cf2.poecdn.net/base/image/01ab55892d4ad9d42b0fcec384ec197a2c115b85704f3a6063c8cd461437573a?w=950&h=83" 
+                         alt="المملكة العربية السعودية - الرياض - الخالدية - طريق الامير محمد بن عبدالرحمن" class="max-w-full h-auto mx-auto">
+                </div>
+            `;
+            
+            let documentHtml = '';
+            
+            if (documentType === 'إيصال') {
+                // Receipt data
+                const receiptCustomer = document.getElementById('receipt-customer').value;
+                const receiptAmount = parseFloat(document.getElementById('receipt-amount').value) || 0;
+                const receiptPaymentType = document.getElementById('receipt-payment-type').value;
+                const paymentReferenceNumber = document.getElementById('payment-reference-number').value;
+                const receiptFor = document.getElementById('receipt-for').value;
+                const receiptRecipient = document.getElementById('receipt-recipient').value;
+                
+                // Format payment type text with reference number if applicable
+                let paymentTypeText = '';
+                if (receiptPaymentType === 'شيك' && paymentReferenceNumber) {
+                    paymentTypeText = `شيك برقم ${paymentReferenceNumber}`;
+                } else if (receiptPaymentType === 'حوالة' && paymentReferenceNumber) {
+                    paymentTypeText = `حوالة برقم ${paymentReferenceNumber}`;
+                } else if (receiptPaymentType) {
+                    paymentTypeText = receiptPaymentType;
+                }
+                
+                // Receipt template
+                documentHtml = `
+                <div class="max-w-4xl mx-auto p-4 border-2 border-gray-300">
+                    <!-- Logo Header -->
+                    <div class="text-center w-full mb-4 border-b pb-4">
+                        <img src="https://pfst.cf2.poecdn.net/base/image/7c0c25efa2d14e3ef1f1b431dc153d1673a72b4b4a5946f426dcf13830f298b4?w=564&h=146" alt="مؤسسة عالم الظل للمقاولات العامة" class="max-w-full h-auto mx-auto">
+                    </div>
+                    
+                    <!-- Document Title and Info -->
+                    <div class="relative mb-4">
+                        <div class="text-center w-full">
+                            <h1 class="text-3xl font-bold">${documentType}</h1>
+                            <p class="text-xl mt-2">Receipt / إيصال استلام</p>
+                        </div>
+                        <div class="absolute top-10 left-0 text-left text-xs">
+                            <p>${invoiceNumber}</p>
+                            <p>${invoiceDate}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Receipt Details -->
+                    <div class="border-2 p-4 rounded bg-gray-50 mb-6">
+                        <div class="mb-3 pb-2 border-b">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div><strong>استلمنا من السيد : </strong></div>
+                                    <div class="mx-2 underline">${receiptCustomer}</div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="ml-2"><strong>المبلغ : </strong></div>
+                                    <div class="mx-2 underline">${formatNumber(receiptAmount)} ريال</div>
+                                    <div class="mr-2 font-bold text-sm text-blue-700">${paymentTypeText ? `(${paymentTypeText})` : ''}</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3 pb-2 border-b">
+                            <div class="flex items-center">
+                                <div><strong>وذلك بمقابل : </strong></div>
+                                <div class="mx-2">${receiptFor || '<div class="border-b border-gray-400 w-full mx-2"></div>'}</div>
+                            </div>
+                        </div>
+                        <div class="flex justify-between mt-20">
+                            <div></div>
+                            <div class="text-left">
+                                <div><strong>المستلم:</strong></div>
+                                <div style="border-bottom: 1px solid #718096; min-width: 120px; padding-bottom: 5px;">${receiptRecipient}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer Address -->
+                    ${footerAddress}
+                </div>
+                `;
+            } else if (documentType === 'عقد عمل') {
+                // Get invoice data
+                const customerName = document.getElementById('customer-name').value;
+                const address = document.getElementById('address').value;
+                const shippingAddress = document.getElementById('shipping-address').value;
+                const reference = document.getElementById('reference').value;
+                const seller = document.getElementById('seller').value;
+                
+                const subtotal = document.getElementById('subtotal').textContent;
+                const totalVat = document.getElementById('total-vat').textContent;
+                const grandTotal = document.getElementById('grand-total').textContent;
+                
+                // Create table rows for items
+                let itemsHtml = '';
+                document.querySelectorAll('#items-table tr').forEach(row => {
+                    const name = row.querySelector('.item-name').value;
+                    const quantity = row.querySelector('.item-quantity').value;
+                    const price = row.querySelector('.item-price').value;
+                    const discount = row.querySelector('.item-discount').value;
+                    const vat = row.querySelector('.item-vat').textContent;
+                    const total = row.querySelector('.item-total').textContent;
+                    
+                    itemsHtml += `
+                        <tr class="border-b">
+                            <td class="p-2 text-right">${name}</td>
+                            <td class="p-2 text-center">${quantity}</td>
+                            <td class="p-2 text-center">${formatNumber(price)}</td>
+                            <td class="p-2 text-center">${total}</td>
+                        </tr>
+                    `;
+                });
+                
+                // Work Contract template
+                documentHtml = `
+                <div class="max-w-4xl mx-auto p-4 border-2 border-gray-300">
+                    <!-- Logo Header -->
+                    <div class="text-center w-full mb-4 border-b pb-4">
+                        <img src="https://pfst.cf2.poecdn.net/base/image/7c0c25efa2d14e3ef1f1b431dc153d1673a72b4b4a5946f426dcf13830f298b4?w=564&h=146" alt="مؤسسة عالم الظل للمقاولات العامة" class="max-w-full h-auto mx-auto">
+                    </div>
+                    
+                    <!-- Document Title and Info -->
+                    <div class="text-center mb-6">
+                        <h1 class="text-3xl font-bold">${documentType}</h1>
+                        <p class="text-xl mt-2">Work Contract / عقد عمل</p>
+                        <div class="flex justify-center gap-8 mt-2">
+                            <p class="text-gray-600">رقم العقد: ${invoiceNumber}</p>
+                            <p class="text-gray-600">التاريخ: ${invoiceDate}</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Contract Parties -->
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold mb-3 text-center border-b pb-2">أطراف العقد</h2>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="border p-3 rounded bg-gray-50">
+                                <h3 class="font-bold text-lg mb-2 text-center">الطرف الأول (المقاول)</h3>
+                                <div class="flex justify-between mb-2">
+                                    <div><strong>اسم المقاول :</strong></div>
+                                    <div>${seller}</div>
+                                </div>
+                                <div class="flex justify-between mb-2">
+                                    <div><strong>المرجع :</strong></div>
+                                    <div>${reference}</div>
+                                </div>
+                            </div>
+                            
+                            <div class="border p-3 rounded bg-gray-50">
+                                <h3 class="font-bold text-lg mb-2 text-center">الطرف الثاني (العميل)</h3>
+                                <div class="flex justify-between mb-2">
+                                    <div><strong>اسم العميل :</strong></div>
+                                    <div>${customerName}</div>
+                                </div>
+                                <div class="flex justify-between mb-2">
+                                    <div><strong>العنوان :</strong></div>
+                                    <div>${address}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contract Details -->
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold mb-3 text-center border-b pb-2">تفاصيل العمل</h2>
+                        
+                        <div class="border p-3 rounded bg-gray-50 mb-4">
+                            <p class="mb-2 font-bold">موقع العمل: ${shippingAddress}</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <table class="w-full border">
+                                <thead>
+                                    <tr class="bg-gray-200">
+                                        <th class="p-2 text-right">وصف العمل</th>
+                                        <th class="p-2 text-center">الكمية</th>
+                                        <th class="p-2 text-center">السعر</th>
+                                        <th class="p-2 text-center">الإجمالي</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${itemsHtml}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <div class="w-full md:w-1/3">
+                                <div class="border p-3 rounded bg-gray-50">
+                                    <div class="flex justify-between mb-2">
+                                        <span class="font-bold">المجموع قبل الضريبة:</span>
+                                        <span>${subtotal} ريال</span>
+                                    </div>
+                                    <div class="flex justify-between mb-2">
+                                        <span class="font-bold">إجمالي الضريبة:</span>
+                                        <span>${totalVat} ريال</span>
+                                    </div>
+                                    <div class="flex justify-between font-bold text-lg border-t pt-2 mt-2">
+                                        <span>القيمة الإجمالية للعقد:</span>
+                                        <span>${grandTotal} ريال</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Contract Terms -->
+                    <div class="mb-6">
+                        <h2 class="text-xl font-bold mb-3 text-center border-b pb-2">بنود العقد</h2>
+                        
+                        <div class="border p-3 rounded bg-gray-50">
+                            <ol class="list-decimal pr-5 space-y-2">
+                                <li>يلتزم الطرف الأول بتنفيذ العمل حسب المواصفات المتفق عليها.</li>
+                                <li>يلتزم الطرف الثاني بسداد المبالغ وفق جدول الدفعات المتفق عليه.</li>
+                                <li>مدة تنفيذ العمل: حسب الاتفاق.</li>
+                                <li>أي تعديلات على العمل تتطلب موافقة الطرفين خطياً.</li>
+                                <li>يلتزم الطرف الأول بضمان الأعمال المنفذة لمدة سنة من تاريخ التسليم.</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <!-- Signatures -->
+                    <div class="grid grid-cols-2 gap-4 mt-8 pt-4 border-t">
+                        <div class="text-center">
+                            <p class="font-bold">توقيع الطرف الأول (المقاول)</p>
+                            <div class="h-20 w-40 border-b mt-10 mx-auto"></div>
+                        </div>
+                        <div class="text-center">
+                            <p class="font-bold">توقيع الطرف الثاني (العميل)</p>
+                            <div class="h-20 w-40 border-b mt-10 mx-auto"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer Address -->
+                    ${footerAddress}
+                </div>
+                `;
+            } else {
+                // Get invoice data
+                const customerName = document.getElementById('customer-name').value;
+                const address = document.getElementById('address').value;
+                const shippingAddress = document.getElementById('shipping-address').value;
+                const reference = document.getElementById('reference').value;
+                const seller = document.getElementById('seller').value;
+                
+                const subtotal = document.getElementById('subtotal').textContent;
+                const totalVat = document.getElementById('total-vat').textContent;
+                const grandTotal = document.getElementById('grand-total').textContent;
+                
+                // Create table rows for items
+                let itemsHtml = '';
+                document.querySelectorAll('#items-table tr').forEach(row => {
+                    const name = row.querySelector('.item-name').value;
+                    const quantity = row.querySelector('.item-quantity').value;
+                    const unit = row.querySelector('.item-unit').value;
+                    const price = row.querySelector('.item-price').value;
+                    const discount = row.querySelector('.item-discount').value;
+                    const vat = row.querySelector('.item-vat').textContent;
+                    const total = row.querySelector('.item-total').textContent;
+                    
+                    // Determine if we need to show additional columns for quotation
+                    if (documentType === 'عرض سعر') {
+                        itemsHtml += `
+                            <tr class="border-b">
+                                <td class="p-2 text-right">${name}</td>
+                                <td class="p-2 text-center">${quantity}</td>
+                                <td class="p-2 text-center">${unit}</td>
+                                <td class="p-2 text-center">${price}</td>
+                                <td class="p-2 text-center">${discount > 0 ? discount + '%' : '-'}</td>
+                                <td class="p-2 text-center">${vat}</td>
+                                <td class="p-2 text-center">${total}</td>
+                            </tr>
+                        `;
+                    } else {
+                        itemsHtml += `
+                            <tr class="border-b">
+                                <td class="p-2 text-right">${name}</td>
+                                <td class="p-2 text-center">${quantity}</td>
+                                <td class="p-2 text-center">${price}</td>
+                                <td class="p-2 text-center">${discount > 0 ? discount + '%' : '-'}</td>
+                                <td class="p-2 text-center">${vat}</td>
+                                <td class="p-2 text-center">${total}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                
+                // Determine whether to show document number and date in title section
+                let documentInfoHtml = '';
+                if (documentType !== 'عرض سعر') {
+                    documentInfoHtml = `
+                    <div class="flex justify-center gap-8 mt-2">
+                        <p class="text-gray-600">رقم المستند: ${invoiceNumber}</p>
+                        <p class="text-gray-600">التاريخ: ${invoiceDate}</p>
+                    </div>
+                    `;
+                }
+                
+                // Determine totals alignment and width based on document type
+                const totalsAlignmentClass = documentType === 'عرض سعر' ? 'justify-start' : 'justify-end';
+                const totalsWidthClass = documentType === 'عرض سعر' ? 'w-full' : 'w-full md:w-2/3';
+                
+                // Create table headers based on document type
+                let tableHeadersHtml = '';
+                if (documentType === 'عرض سعر') {
+                    tableHeadersHtml = `
+                        <th class="p-2 text-right">الوصف</th>
+                        <th class="p-2 text-center">الكمية</th>
+                        <th class="p-2 text-center"></th>
+                        <th class="p-2 text-center">السعر</th>
+                        <th class="p-2 text-center">الخصم</th>
+                        <th class="p-2 text-center">الضريبة</th>
+                        <th class="p-2 text-center">الإجمالي</th>
+                    `;
+                } else {
+                    tableHeadersHtml = `
+                        <th class="p-2 text-right">الوصف</th>
+                        <th class="p-2 text-center">الكمية</th>
+                        <th class="p-2 text-center">السعر</th>
+                        <th class="p-2 text-center">الخصم</th>
+                        <th class="p-2 text-center">الضريبة</th>
+                        <th class="p-2 text-center">الإجمالي</th>
+                    `;
+                }
+                
+                // Set the footer text based on document type
+                let footerText = '';
+                if (documentType === 'عرض سعر') {
+                    footerText = `
+                    <div class="border-t pt-4 text-center text-gray-600">
+                        <p>للاستفسار حول هذا العرض يمكنكم التواصل معنا <a href="tel:+966535616230" class="text-blue-600 hover:underline">+966535616230</a> أبوحسن</p>
+                    </div>
+                    `;
+                } else {
+                    footerText = `
+                    <div class="border-t pt-4 text-center text-gray-600">
+                        <p>شكراً لتعاملكم معنا</p>
+                        <p>يرجى الاحتفاظ بهذه الفاتورة كمرجع للمدفوعات</p>
+                    </div>
+                    `;
+                }
+                
+                // Get the appropriate label for the invoice number field
+                let invoiceNumberLabel = documentType === 'عرض سعر' ? 'رقم' : 'رقم الفاتورة';
+                
+                // Default template for Invoice and Quotation
+                documentHtml = `
+                <div class="max-w-4xl mx-auto p-4 border-2 border-gray-300">
+                    <!-- Logo Header -->
+                    <div class="text-center w-full mb-4 border-b pb-4">
+                        <img src="https://pfst.cf2.poecdn.net/base/image/7c0c25efa2d14e3ef1f1b431dc153d1673a72b4b4a5946f426dcf13830f298b4?w=564&h=146" alt="مؤسسة عالم الظل للمقاولات العامة" class="max-w-full h-auto mx-auto">
+                    </div>
+                    
+                    <!-- Document Title and Info -->
+                    <div class="text-center mb-6">
+                        <h1 class="text-2xl font-bold">${documentType}</h1>
+                        ${documentInfoHtml}
+                    </div>
+                    
+                    <!-- Invoice Details (Two Rows, Two Columns) -->
+                    <div class="border p-1.5 rounded bg-gray-50 mb-4">
+                        <div class="grid grid-cols-2 gap-2">
+                            <!-- Row 1, Column 1: Invoice Number -->
+                            <div class="flex justify-between mb-0.5">
+                                <div class="text-left"><strong>${invoiceNumberLabel} :</strong></div>
+                                <div class="text-center">${invoiceNumber}</div>
+                                <div class="text-right"><strong>: No</strong></div>
+                            </div>
+                            
+                            <!-- Row 1, Column 2: Reference -->
+                            <div class="flex justify-between mb-0.5">
+                                <div class="text-left"><strong>المرجع :</strong></div>
+                                <div class="text-center">${reference}</div>
+                                <div class="text-right"><strong>: Ref</strong></div>
+                            </div>
+                            
+                            <!-- Horizontal line separator spanning across both columns -->
+                            <div class="col-span-2 border-b border-gray-200 my-0"></div>
+                            
+                            <!-- Row 2, Column 1: Date -->
+                            <div class="flex justify-between mb-1">
+                                <div class="text-left"><strong>التاريخ :</strong></div>
+                                <div class="text-center">${invoiceDate}</div>
+                                <div class="text-right"><strong>: Date</strong></div>
+                            </div>
+                            
+                            <!-- Row 2, Column 2: Seller -->
+                            <div class="flex justify-between mb-1">
+                                <div class="text-left"><strong>البائع :</strong></div>
+                                <div class="text-center">${seller}</div>
+                                <div class="text-right"><strong>: Seller</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Customer Details -->
+                    <div class="border p-2 rounded bg-gray-50 mb-6">
+                        <div class="w-full mb-1">
+                            <div class="flex justify-between mb-1 pb-1 border-b border-gray-200">
+                                <div class="text-left"><strong>العميل :</strong></div>
+                                <div class="text-center">${customerName}</div>
+                                <div class="text-right"><strong>: Customer</strong></div>
+                            </div>
+                            <div class="flex justify-between mb-1 pb-1 border-b border-gray-200">
+                                <div class="text-left"><strong>عنوان العميل :</strong></div>
+                                <div class="text-center">${address}</div>
+                                <div class="text-right"><strong>: Customer Address</strong></div>
+                            </div>
+                            <div class="flex justify-between mb-1 pb-1">
+                                <div class="text-left"><strong>عنوان الشحن :</strong></div>
+                                <div class="text-center">${shippingAddress}</div>
+                                <div class="text-right"><strong>: Shipping Address</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <table class="w-full border">
+                            <thead>
+                                <tr class="bg-gray-200">
+                                    ${tableHeadersHtml}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="flex ${totalsAlignmentClass} mb-6">
+                        <div class="${totalsWidthClass}">
+                            <div class="border p-3 rounded bg-gray-50">
+                                <div class="flex justify-between items-center mb-2 border-b pb-2">
+                                    <span class="text-right font-bold">المجموع قبل الضريبة:</span>
+                                    <span class="text-center">${subtotal} ريال</span>
+                                    <span class="text-left font-bold">: Subtotal</span>
+                                </div>
+                                <div class="flex justify-between items-center mb-2 border-b pb-2">
+                                    <span class="text-right font-bold">إجمالي الضريبة:</span>
+                                    <span class="text-center">${totalVat} ريال</span>
+                                    <span class="text-left font-bold">: Total VAT</span>
+                                </div>
+                                <div class="flex justify-between items-center font-bold text-lg pt-2 mt-2">
+                                    <span class="text-right">المجموع الكلي:</span>
+                                    <span class="text-center">${grandTotal} ريال</span>
+                                    <span class="text-left">: Grand Total</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${footerText}
+                    
+                    <!-- Footer Address -->
+                    ${footerAddress}
+                </div>
+                `;
+            }
+            
+            // Update preview
+            document.getElementById('print-preview').innerHTML = documentHtml;
+            document.getElementById('print-version').innerHTML = documentHtml;
+        }
+        
+        // Print function
+        function printInvoice() {
+            updatePreview();
+            window.print();
+        }
+        
+        // Generate new invoice
+        function newInvoice() {
+            if (confirm('هل تريد إنشاء مستند جديد؟ سيتم حذف بيانات المستند الحالي.')) {
+                generateNewInvoiceNumber();
+                resetFormWithoutConfirm();
+            }
+        }
+        
+        // Reset form function with confirmation
+        function resetForm() {
+            if (confirm('هل أنت متأكد من رغبتك في إعادة تعيين النموذج وحذف جميع البيانات؟')) {
+                resetFormWithoutConfirm();
+            }
+        }
+        
+        // Reset form without confirmation (used by newInvoice)
+        function resetFormWithoutConfirm() {
+            // Reset common fields
+            document.getElementById('invoice-date').valueAsDate = new Date();
+            
+            // Reset invoice/quote fields
+            document.getElementById('customer-name').value = '';
+            document.getElementById('address').value = '';
+            document.getElementById('shipping-address').value = '';
+            document.getElementById('reference').value = '';
+            document.getElementById('seller').value = '';
+            document.getElementById('vat-rate').value = '0';
+            document.getElementById('items-table').innerHTML = '';
+            
+            // Reset receipt fields
+            document.getElementById('receipt-customer').value = '';
+            document.getElementById('receipt-amount').value = '0';
+            document.getElementById('receipt-payment-type').selectedIndex = 0;
+            document.getElementById('payment-reference-number').value = '';
+            document.getElementById('payment-reference-field').style.display = 'none';
+            document.getElementById('receipt-for').value = '';
+            document.getElementById('receipt-recipient').value = '';
+            
+            // Add an empty item row for invoice
+            addItemRow();
+            
+            // Update preview
+            updatePreview();
+        }
+        
+        // Event listeners
+        document.getElementById('add-item-btn').addEventListener('click', () => addItemRow());
+        document.getElementById('print-btn').addEventListener('click', printInvoice);
+        document.getElementById('reset-btn').addEventListener('click', resetForm);
+        document.getElementById('new-invoice-btn').addEventListener('click', newInvoice);
+        document.getElementById('vat-rate').addEventListener('change', () => {
+            document.querySelectorAll('#items-table tr').forEach((row, index) => {
+                updateItemTotal(index);
+            });
+        });
+        document.getElementById('document-type').addEventListener('change', toggleFormFields);
+        
+        // Receipt-specific listeners
+        document.getElementById('receipt-payment-type').addEventListener('change', togglePaymentReferenceField);
+        document.getElementById('payment-reference-number').addEventListener('input', updatePreview);
+        document.getElementById('receipt-amount').addEventListener('change', updatePreview);
+        document.getElementById('receipt-customer').addEventListener('input', updatePreview);
+        document.getElementById('receipt-for').addEventListener('input', updatePreview);
+        document.getElementById('receipt-recipient').addEventListener('input', updatePreview);
+        
+        // Initialize form based on selected document type
+        toggleFormFields();
+        
+        // Add an empty item row to start with
+        addItemRow();
+        
+        // Initialize preview
+        updatePreview();
+    </script>
+    <script>
+  // Register Service Worker for PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registered successfully'))
+        .catch(err => console.log('Error registering Service Worker', err));
+    });
+  }
+  
+  // Add installation prompt
+  let deferredPrompt;
+  
+  window.addEventListener('beforeinstallprompt', (e) => {
+    // Prevent Chrome from showing the mini-infobar
+    e.preventDefault();
+    // Save the event for later use
+    deferredPrompt = e;
+    
+    // Show your own install button
+    const installButton = document.createElement('button');
+    installButton.innerText = 'تثبيت التطبيق على الجهاز';
+    installButton.classList.add('bg-blue-600', 'text-white', 'px-4', 'py-2', 'rounded', 'fixed', 'bottom-4', 'right-4', 'shadow-lg', 'z-50');
+    installButton.addEventListener('click', () => {
+      // Show the installation prompt
+      deferredPrompt.prompt();
+      // Wait for user's choice
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') {
+          console.log('User accepted the installation');
+        }
+        deferredPrompt = null;
+        installButton.style.display = 'none';
+      });
+    });
+    
+    document.body.appendChild(installButton);
+  });
+</script>
+</body>
+</html>
